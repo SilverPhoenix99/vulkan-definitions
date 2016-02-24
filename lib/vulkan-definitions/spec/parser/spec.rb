@@ -10,10 +10,6 @@ module OgaExtensions
   end
 end
 
-require_relative 'spec/group'
-require_relative 'spec/feature'
-require_relative 'spec/extension'
-
 module Vk
   class Spec
     using OgaExtensions
@@ -35,7 +31,6 @@ module Vk
       @commands = {}
       doc = Oga.parse_xml(File.read(path))
       parse doc
-      nil == nil
       nil
     end
 
@@ -44,6 +39,7 @@ module Vk
         parse_version doc
         parse_basic_types doc
         parse_handle_types doc
+        parse_struct_types doc
         parse_callbacks doc
         parse_enums doc
         parse_commands doc
@@ -59,7 +55,7 @@ module Vk
 
       def parse_basic_types(doc)
         doc.xpath('//types/type[@category="basetype" or @category="bitmask"]').each do |x|
-          @types[x.at_xpath('name').text.dup] = x.at_xpath('type').text.dup
+          @types[x.at_xpath('name').text] = x.at_xpath('type').text
         end
         nil
       end
@@ -78,6 +74,11 @@ module Vk
         nil
       end
 
+      def parse_struct_types(doc)
+        doc.xpath('//types/type[@category="struct"]').each { |x| @types[x[:name]] = Struct.new(x) }
+        nil
+      end
+
       def parse_callbacks(doc)
         doc.xpath('//types/type[@category="funcpointer"]').each do |x|
           ret = x.children.first.text.match(/typedef\s+([^\(\s]+)\s*\(.*/)[1]
@@ -89,10 +90,10 @@ module Vk
 
       def parse_enums(doc)
         doc.xpath('//enums').each do |x|
-          if x[:name] == 'API Constants'
-            x.xpath('enum').each { |e| @constants[e[:name]] = e[:value] }
-          else
+          if x[:type]
             parse_enum x
+          else
+            x.xpath('enum').each { |e| @constants[e[:name]] = e[:value] }
           end
         end
         nil

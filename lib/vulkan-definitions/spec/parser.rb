@@ -1,0 +1,5 @@
+require_relative 'parser/spec'
+require_relative 'parser/struct'
+require_relative 'parser/group'
+require_relative 'parser/feature'
+require_relative 'parser/extension'
