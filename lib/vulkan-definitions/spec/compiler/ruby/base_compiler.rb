@@ -2,7 +2,8 @@ module Vk
   module Ruby
     module BaseCompiler
 
-      MASK_CONST = /^\(~((?:0x)?\d+)(U(?:LL)?)\)$/
+      MASK_CONST  = /^\(~((?:0x)?\d+)(U(?:LL)?)\)$/
+      FLOAT_CONST = /^\d+(?:\.\d+)?f$/
 
       attr_accessor :io
       attr_accessor :indent
@@ -55,14 +56,16 @@ module Vk
         end
 
         def convert_value(value)
+          return "'#{value[1..-2]}'.freeze" if value.start_with?('"')
+
+          return value[0..-2] if value =~ FLOAT_CONST
+
           if value =~ MASK_CONST
             require 'fiddle' unless defined? Fiddle
             size  = $2 == 'ULL' ? Fiddle::SIZEOF_LONG_LONG : Fiddle::SIZEOF_LONG
             mask = (1 << 8*size)-1 & ~$1.to_i
             return '0x%x' % mask
           end
-
-          return "'#{value[1..-2]}'.freeze" if value.start_with?('"')
 
           value
         end
