@@ -5,12 +5,12 @@ module Vk
     attr_reader :api
     attr_reader :name
     attr_reader :version
-    attr_reader :require
+    attr_reader :requires
     # attr_reader :remove
 
     def initialize(elem)
       @api, @name, @version = elem[:api], elem[:name], elem[:number]
-      @require = parse_group(:require, elem)
+      @requires = parse_group(:require, elem)
       # @remove  = parse_group(:remove, elem)
       nil
     end

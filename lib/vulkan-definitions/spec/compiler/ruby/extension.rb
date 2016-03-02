@@ -1,27 +1,33 @@
 module Vk
   module Ruby
-    class ExtensionCompiler
-      include BaseCompiler
+    class ExtensionCompiler < FeatureCompiler
 
       attr_reader :spec
-      attr_reader :extension
+      alias_method :extension, :feature
 
       def initialize(spec, extension, io = StringIO.new, indent = 0)
-        super(io, indent)
-        @spec, @extension = spec, extension
-      end
-
-      def compile
-        writeln "module #{extension.name}"
-
-        with_indent do
-          writeln 'extend ::Vk::ExtensionModule'
-        end
-
-        writeln 'end'
+        super(spec, extension, io, indent)
         nil
       end
 
+      def version
+        nil
+      end
+
+      private
+        def compile_constants
+          constants = requires.enums.map do |name, constant|
+            next if constant[:extends]
+            value = constant[:value]
+            next [name, convert_value(value)] if value
+
+            value = constant[:extends]
+
+            [name, convert_value(constant)] if constant
+          end.tap(&:compact!)
+          compile_hash(constants, :constants)
+          nil
+        end
     end
   end
 end

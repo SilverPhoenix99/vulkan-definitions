@@ -5,13 +5,13 @@ module Vk
     attr_reader :name
     attr_reader :number
     attr_reader :apis
-    attr_reader :require
-    # attr_reader :remove
+    attr_reader :requires
+    # attr_reader :removes
 
     def initialize(elem)
       @name, @number = elem[:name], elem[:number].to_i
       @apis = elem[:supported].split(/\|/)
-      @require = parse_group(:require, elem)
+      @requires = parse_group(:require, elem)
       # @remove  = parse_group(:remove, elem)
       nil
     end

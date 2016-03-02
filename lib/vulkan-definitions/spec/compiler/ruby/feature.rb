@@ -7,22 +7,39 @@ module Vk
       attr_reader :feature
 
       def initialize(spec, feature, io = StringIO.new, ident = 0)
-        super(io, ident)
-        @spec, @feature = spec, feature
+        super(spec, io, ident)
+        @feature = feature
         nil
       end
 
+      def name
+        feature.name
+      end
+
+      def version
+        feature.version
+      end
+
+      def requires
+        feature.requires
+      end
+
       def compile
-        writeln "module #{feature.name}"
+        writeln "module #{name}"
 
         with_indent do
           writeln 'extend ::Vk::ExtensionModule'
-          writeln
-          writeln "@version = '#{feature.version}'.freeze"
+
+          if version
+            writeln
+            writeln "@version = '#{version}'.freeze"
+          end
+
           compile_constants
           compile_types
-          # compile_enums
-          # compile_commands
+          compile_enums
+          compile_structs
+          compile_commands
         end
 
         writeln 'end'
@@ -31,31 +48,52 @@ module Vk
 
       private
         def compile_constants
-          constants = feature.require.enums.map do |name|
+          constants = requires.enums.map do |name|
             constant = spec.constants[name]
-            build_value(name, constant) if constant
+            [name, convert_value(constant)] if constant
           end.tap(&:compact!)
-
-          compile_collection(constants, :constants)
-
+          compile_hash(constants, :constants)
           nil
         end
 
         def compile_types
-          types = feature.require.types.map do |name|
-            type = spec.types[name]
-            build_member(name, type) if type
-          end.tap(&:compact!)
-
-          compile_collection(types, :types) unless types.empty?
+          types = mapped_types.reject { |_, type| type == :enum || type.is_a?(Struct) }
+            .map { |name, type| [name, convert_type(name, type)] }
+          compile_hash types, :types
           nil
         end
 
-        def compile_collection(collection, type)
-          writeln
-          writeln "@#{type} = {"
-          with_indent { collection.each { |item| writeln "#{item}," } }
-          writeln '}.freeze'
+        def compile_enums
+          enums = mapped_types.select { |_, type| type == :enum }
+            .map { |name, type| [name, convert_type(name, type)] }
+          compile_hash enums, :enums
+          nil
+        end
+
+        def compile_structs
+          structs = mapped_types.select { |_, type| type.is_a?(Struct) }
+            .map { |name, type| [name, convert_type(name, type)] }
+          compile_hash structs, :structs, adjust: false
+          nil
+        end
+
+        def compile_commands
+          commands = requires.commands.map do |name|
+            ret, params = spec.commands[name]
+            params = [ret] + params
+            params = params.map { |type| convert_type(nil, type) }.join(', ')
+            [name, "[ #{params} ].freeze"]
+          end
+
+          compile_hash(commands, :commands)
+          nil
+        end
+
+        def mapped_types
+          @mapped_types ||= requires.types.map do |name|
+            type = spec.types[name]
+            [name, type] if type
+          end.tap(&:compact!)
         end
     end
   end

@@ -1,5 +1,6 @@
 require_relative 'ruby/base_compiler'
 require_relative 'ruby/spec'
 require_relative 'ruby/struct'
+require_relative 'ruby/enum'
 require_relative 'ruby/feature'
 require_relative 'ruby/extension'

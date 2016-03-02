@@ -37,11 +37,12 @@ module Vk
     private
       def parse(doc)
         parse_version doc
+        parse_enums doc
         parse_basic_types doc
         parse_handle_types doc
+        parse_enum_types doc
         parse_struct_types doc
         parse_callbacks doc
-        parse_enums doc
         parse_commands doc
         parse_features doc
         parse_extensions doc
@@ -51,41 +52,6 @@ module Vk
       def parse_version(doc)
         version = doc.at_xpath('//types/type[name="VK_API_VERSION"]/text()[last()]').text
         @version = /\((\d+),\s*(\d+),\s*(\d+)\)/.match(version).captures
-      end
-
-      def parse_basic_types(doc)
-        doc.xpath('//types/type[@category="basetype" or @category="bitmask"]').each do |x|
-          @types[x.at_xpath('name').text] = x.at_xpath('type').text
-        end
-        nil
-      end
-
-      # :non_dispatchable_handle is a special case
-      #   on 64 bit architectures, it's a pointer
-      #   on 32 bit architectures, it's a uint64_t
-      def parse_handle_types(doc)
-        doc.xpath('//types/type[@category="handle" and type="VK_DEFINE_HANDLE"]/name/text()').each do |x|
-          @types[x.text] = :pointer
-        end
-
-        doc.xpath('//types/type[@category="handle" and type="VK_DEFINE_NON_DISPATCHABLE_HANDLE"]/name/text()').each do |x|
-          @types[x.text] = :non_dispatchable_handle
-        end
-        nil
-      end
-
-      def parse_struct_types(doc)
-        doc.xpath('//types/type[@category="struct"]').each { |x| @types[x[:name]] = Struct.new(x) }
-        nil
-      end
-
-      def parse_callbacks(doc)
-        doc.xpath('//types/type[@category="funcpointer"]').each do |x|
-          ret = x.children.first.text.match(/typedef\s+([^\(\s]+)\s*\(.*/)[1]
-          params = x.xpath('type').map { |t| [t.text, *t.next.text.gsub('const', '').split][0..-2].join }
-          @callbacks[x.at_xpath('name').text] = [ret, params]
-        end
-        nil
       end
 
       def parse_enums(doc)
@@ -112,18 +78,57 @@ module Vk
 
           len = names.map(&:length).min
           len = names.map! { |n| n[0...len] }
-                     .map { |n| n.each_char.to_a }
-                     .transpose.map!(&:uniq).map!(&:length).index { |l| l > 1 }
+                    .map { |n| n.each_char.to_a }
+                    .transpose.map!(&:uniq).map!(&:length).index { |l| l > 1 }
           prefix = names[0][0...len]
         end
 
-        values = {}
-        @enums[elem[:name]] = { type: elem[:type].to_sym, prefix: prefix, values: values }
+        @enums[elem[:name]] = { type: elem[:type].to_sym, prefix: prefix, values: values = {} }
 
         elem.xpath('enum')
             .map { |e| [ e[:name][prefix.length..-1], e[:bitpos], e[:value] ] }
             .each { |name, bitpos, value| values[name] = bitpos ? '0x%08x' % (1 << bitpos.to_i) : value }
 
+        nil
+      end
+
+      def parse_basic_types(doc)
+        doc.xpath('//types/type[@category="basetype" or @category="bitmask"]').each do |x|
+          @types[x.at_xpath('name').text] = x.at_xpath('type').text
+        end
+        nil
+      end
+
+      # :non_dispatchable_handle is a special case
+      #   on 64 bit architectures, it's a pointer
+      #   on 32 bit architectures, it's a uint64_t
+      def parse_handle_types(doc)
+        doc.xpath('//types/type[@category="handle" and type="VK_DEFINE_HANDLE"]/name/text()').each do |x|
+          @types[x.text] = :pointer
+        end
+
+        doc.xpath('//types/type[@category="handle" and type="VK_DEFINE_NON_DISPATCHABLE_HANDLE"]/name/text()').each do |x|
+          @types[x.text] = :non_dispatchable_handle
+        end
+        nil
+      end
+
+      def parse_enum_types(doc)
+        doc.xpath('//types/type[@category="enum"]').each { |x| @types[x[:name]] = :enum }
+        nil
+      end
+
+      def parse_struct_types(doc)
+        doc.xpath('//types/type[@category="struct" or @category="union"]').each { |x| @types[x[:name]] = Struct.new(x) }
+        nil
+      end
+
+      def parse_callbacks(doc)
+        doc.xpath('//types/type[@category="funcpointer"]').each do |x|
+          ret = x.children.first.text.match(/typedef\s+([^\(\s]+)\s*\(.*/)[1]
+          params = x.xpath('type').map { |t| [t.text, *t.next.text.gsub('const', '').split][0..-2].join }
+          @callbacks[x.at_xpath('name').text] = [ret, params]
+        end
         nil
       end
 
@@ -149,7 +154,7 @@ module Vk
       end
 
       def parse_extensions(doc)
-        @extensions = doc.xpath('//extensions/extension').map { |x| Extension.new(x) }
+        @extensions = doc.xpath('//extensions/extension[not(@supported="disabled")]').map { |x| Extension.new(x) }
         nil
       end
   end
